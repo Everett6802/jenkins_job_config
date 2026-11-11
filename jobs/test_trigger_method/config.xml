@@ -1,0 +1,34 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers>
+    <hudson.triggers.TimerTrigger>
+      <spec>TZ=Asia/Taipei
+12 15 23 * *</spec>
+    </hudson.triggers.TimerTrigger>
+  </triggers>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+CAUSE=$(curl -s &quot;$BUILD_URL/api/json&quot; | grep -o &apos;&quot;shortDescription&quot;:&quot;[^&quot;]*&quot;&apos; )
+echo &quot;Build cause: $CAUSE&quot;
+if echo &quot;$CAUSE&quot; | grep -qi &quot;Started by timer&quot;; then
+  echo &quot;⏰ Triggered by cron&quot;
+else
+  echo &quot;🖐 Triggered manually or other cause&quot;
+fi</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

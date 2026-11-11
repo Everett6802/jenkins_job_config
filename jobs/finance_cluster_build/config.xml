@@ -1,0 +1,98 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@338.va_0a_b_50e29397">
+      <autoRebuild>false</autoRebuild>
+      <rebuildDisabled>false</rebuildDisabled>
+    </com.sonyericsson.rebuild.RebuildSettings>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>IMAGE_NAME</name>
+          <description>Deprecated</description>
+          <defaultValue>everett6802/linuxc:2.2</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>PROJECT_NAME</name>
+          <defaultValue>finance_cluster</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>HOST_SRC_PATH</name>
+          <description>/host_mnt/c/Users/price/source</description>
+          <defaultValue>/host_mnt/c/source</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+    <jenkins.model.BuildDiscarderProperty>
+      <strategy class="hudson.tasks.LogRotator">
+        <daysToKeep>-1</daysToKeep>
+        <numToKeep>5</numToKeep>
+        <artifactDaysToKeep>-1</artifactDaysToKeep>
+        <artifactNumToKeep>-1</artifactNumToKeep>
+        <removeLastBuild>false</removeLastBuild>
+      </strategy>
+    </jenkins.model.BuildDiscarderProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash -e
+#set -eux
+#set -eu
+
+CONTAINER_NAME=&quot;${PROJECT_NAME}_build&quot;
+DOCKER_COMMAND=&quot; -e TZ=Asia/Taipei --rm -dit -v ${HOST_SRC_PATH}:/app/src --name ${CONTAINER_NAME}&quot;
+
+cleanup() {
+# stop 後如果容器是 --rm 建立的 → 容器就會被自動刪除
+    if docker container inspect &quot;${CONTAINER_NAME}&quot; &gt;/dev/null 2&gt;&amp;1; then
+        docker stop &quot;${CONTAINER_NAME}&quot;
+        echo &quot;The container was deleted: ${CONTAINER_NAME}&quot;
+    fi
+}
+trap cleanup EXIT
+
+docker container rm -f ${CONTAINER_NAME} || true
+docker container run ${DOCKER_COMMAND} ${LINUXC_IMAGE_NAME} bash
+#docker container exec -i ${CONTAINER_NAME} bash -c &quot;ls /app/src&quot;
+# Build project
+docker container exec -i ${CONTAINER_NAME} bash -c &quot;cd /app/src/${PROJECT_NAME} &amp;&amp; make deep_build&quot;
+# docker container exec -i ${CONTAINER_NAME} bash -c &quot;ls /app/bin&quot;
+
+# According to the Jenkins log: Building in workspace /var/jenkins_home/workspace/finance_cluster_build
+echo &quot;Jenkins Workspace: $WORKSPACE&quot;
+# Make artifact
+rm -rf &quot;$WORKSPACE/artifacts&quot;  # in Jenkins space
+mkdir -p &quot;$WORKSPACE/artifacts&quot;
+# Copy build results from build container to Jenkins workspace
+docker cp ${CONTAINER_NAME}:/app/bin/. &quot;$WORKSPACE/artifacts/&quot;
+
+</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers>
+    <hudson.tasks.ArtifactArchiver>
+      <artifacts>artifacts/**</artifacts>
+      <allowEmptyArchive>false</allowEmptyArchive>
+      <onlyIfSuccessful>false</onlyIfSuccessful>
+      <fingerprint>false</fingerprint>
+      <defaultExcludes>true</defaultExcludes>
+      <caseSensitive>true</caseSensitive>
+      <followSymlinks>false</followSymlinks>
+    </hudson.tasks.ArtifactArchiver>
+  </publishers>
+  <buildWrappers/>
+</project>

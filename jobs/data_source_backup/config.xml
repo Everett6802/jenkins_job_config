@@ -1,0 +1,103 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@338.va_0a_b_50e29397">
+      <autoRebuild>false</autoRebuild>
+      <rebuildDisabled>false</rebuildDisabled>
+    </com.sonyericsson.rebuild.RebuildSettings>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>KEEP_COUNT</name>
+          <defaultValue>3</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>HOST_DATA_PATH</name>
+          <defaultValue>/host_mnt/c/Users/price/project_data/finance_web</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>DATA_SRC_FOLDER</name>
+          <defaultValue>data_source</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers>
+    <hudson.triggers.TimerTrigger>
+      <spec>TZ=Asia/Taipei
+H 6 * * 2-6</spec>
+    </hudson.triggers.TimerTrigger>
+  </triggers>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/sh
+set -eux
+
+JENKINS_HOME=/var/jenkins_home
+BACKUP_DIR=$JENKINS_HOME/local_backup
+HOST_DATA_DIR=${HOST_DATA_PATH}/${DATA_SRC_FOLDER}
+# docker container run -d -u root --name jenkins -p 8080:8080 -p 50000:50000 -e JAVA_OPTS=&quot;-Duser.timezone=Asia/Taipei&quot; -v C:\docker\jenkins_data:/var/jenkins_home -v /var/run/docker.sock:/var/run/docker.sock everett6802/jenkins:2.2
+# Jenkins mount the folder in the local host: C:\docker\jenkins_data
+HOST_BACKUP_DIR=&quot;/host_mnt/c/docker/jenkins_data/local_backup&quot;
+#HOST_BACKUP_DIR=${HOST_DATA_PATH}
+LOCAL=Asia/Taipei
+DATE=$(TZ=$LOCAL date +%Y%m%d_%H%M)
+ARCHIVE=data_source_backup_$DATE.tar.gz
+ARCHIVE_PATH=$BACKUP_DIR/$ARCHIVE
+KEEP=${KEEP_COUNT}
+
+mkdir -p &quot;$BACKUP_DIR&quot;
+#cd $JENKINS_HOME
+# -C /data . =&gt; 只把 /data 裡面的內容打包，而不是把 /data 這個目錄本身包進去。
+docker container run --rm -v &quot;${HOST_DATA_DIR}:/data&quot; -v &quot;${HOST_BACKUP_DIR}:/backup&quot; alpine:3.18 tar -czf &quot;/backup/${ARCHIVE}&quot; -C /data .
+echo &quot;Backup created: $ARCHIVE_PATH&quot;
+# The tar file exists in the &apos;jenkins space&apos;
+# ===== 驗證備份檔（tar test）=====
+tar -tzf &quot;$ARCHIVE_PATH&quot; &gt; /dev/null
+echo &quot;Backup verification passed&quot;
+
+# ----- 上傳至雲端 -----
+# 用瀏覽器登入一次 Google 帳號（產生 token）=&gt; 設定 Google Drive(最重要，但只做一次): rclone.conf =&gt; 需存在在掛載點($JENKINS_HOME)的本機路徑裡 需認證取得token
+RCLONE_REMOTE=gdrive     # rclone remote name
+RCLONE_PATH=backup     # Google Drive 上的路徑
+export RCLONE_CONFIG=&quot;$JENKINS_HOME/.config/rclone/rclone.conf&quot;
+# 傳輸
+rclone copy &quot;$ARCHIVE_PATH&quot; &quot;$RCLONE_REMOTE:$RCLONE_PATH&quot; -P
+# 驗證
+#rclone md5sum &quot;$ARCHIVE_PATH&quot;
+#rclone md5sum &quot;$RCLONE_REMOTE:$RCLONE_PATH/$ARCHIVE&quot;
+LOCAL_MD5=$(rclone md5sum &quot;$ARCHIVE_PATH&quot; | awk &apos;{print $1}&apos;)
+REMOTE_MD5=$(rclone md5sum &quot;$RCLONE_REMOTE:$RCLONE_PATH/$ARCHIVE&quot; | awk &apos;{print $1}&apos;)
+if [ &quot;$LOCAL_MD5&quot; != &quot;$REMOTE_MD5&quot; ]; then
+    echo &quot;ERROR: MD5 mismatch!&quot;
+    exit 1
+fi
+echo &quot;Cloud upload verification passed&quot;
+# ===== 清理舊備份（只留最新 KEEP 份）=====
+cd &quot;$BACKUP_DIR&quot;
+ls -1t data_source_backup_*.tar.gz | tail -n +$((KEEP+1)) | xargs -r rm -f
+echo &quot;Old backups cleaned, keeping latest $KEEP files&quot;
+# ----- 雲端保留最新 N 份 -----
+FILES=$(rclone lsf &quot;$RCLONE_REMOTE:$RCLONE_PATH&quot; --files-only | grep &apos;^data_source_backup_.*\.tar\.gz$&apos;)
+echo &quot;$FILES&quot; | sort -r | tail -n +$(($KEEP+1)) | while read -r f; do
+    echo &quot;Deleting old cloud backup: $f&quot;
+    rclone delete &quot;$RCLONE_REMOTE:$RCLONE_PATH/$f&quot;
+done</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

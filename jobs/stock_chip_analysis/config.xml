@@ -1,0 +1,105 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@338.va_0a_b_50e29397">
+      <autoRebuild>false</autoRebuild>
+      <rebuildDisabled>false</rebuildDisabled>
+    </com.sonyericsson.rebuild.RebuildSettings>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>IMAGE_NAME</name>
+          <description>Deprecated</description>
+          <defaultValue>everett6802/python:1.4</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>CONTAINER_NAME</name>
+          <defaultValue>stock_chip_analysis</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>HOST_SRC_PATH</name>
+          <defaultValue>/host_mnt/c/Users/price/source/finance_web</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>NEED_DATA</name>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>HOST_DATA_PATH</name>
+          <defaultValue>/host_mnt/c/Users/price/project_data/finance_web</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>CONTAINER_DATA_PATH</name>
+          <defaultValue>/data</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>EXECUTION_PARAMETER</name>
+          <description>For multiple parameters, use &apos;|&apos; to separate the different parameters
+Ex: 
+-t|-h|--print_filepath
+-t --tracked_stock_list 2330,2317,2454,2308|-s
+</description>
+          <defaultValue>-t --tracked_stock_list 1519,2059,2308,2330,2345,2383,2454,3017,3037,3661,3665,6139,6669|-t --tracked_stock_list 2327,3481,6239,8027,8028|-s</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash -e
+#set -eux
+#set -eu
+
+cleanup() {
+# stop 後如果容器是 --rm 建立的 → 容器就會被自動刪除
+    docker stop &quot;${CONTAINER_NAME}&quot;
+    echo &quot;The container was deleted: ${CONTAINER_NAME}&quot;
+}
+trap cleanup EXIT
+
+LOCAL=Asia/Taipei
+DOCKER_COMMAND=&quot;-e TZ=${LOCAL} --rm -dit -v ${HOST_SRC_PATH}:/app --name ${CONTAINER_NAME}&quot;
+if [ &quot;${NEED_DATA}&quot; = &quot;true&quot; ]
+then 
+	DOCKER_COMMAND=&quot;${DOCKER_COMMAND} -e DATA_PATH=${CONTAINER_DATA_PATH} -v ${HOST_DATA_PATH}:${CONTAINER_DATA_PATH}&quot;
+fi
+
+docker container rm -f ${CONTAINER_NAME} 2&gt; /dev/null || true
+docker container run ${DOCKER_COMMAND} ${PYTHON_IMAGE_NAME} bash
+echo &quot;******************************************************************&quot;
+now=$(TZ=$LOCAL date +&quot;%Y-%m-%d %H:%M:%S&quot;)
+echo &quot;${now}: Stock Chip Analysis Execution&quot;
+IFS=&apos;|&apos; read -r -a param_array &lt;&lt;&lt; &quot;${EXECUTION_PARAMETER}&quot;
+tags=&quot;&quot;
+for param in &quot;${param_array[@]}&quot;
+do
+    echo &quot;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&quot;
+	echo &quot;Execute the &apos;${param}&apos; parameter&quot;
+    echo &quot;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&quot;
+    docker container exec -i &quot;${CONTAINER_NAME}&quot; bash -c &quot;python ./miscellaneous/stock_chip_analysis.py ${param}&quot;
+    echo &quot;&quot;
+done
+echo &quot;******************************************************************&quot;
+</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

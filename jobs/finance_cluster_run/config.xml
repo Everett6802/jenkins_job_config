@@ -1,0 +1,170 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@338.va_0a_b_50e29397">
+      <autoRebuild>false</autoRebuild>
+      <rebuildDisabled>false</rebuildDisabled>
+    </com.sonyericsson.rebuild.RebuildSettings>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>IMAGE_NAME</name>
+          <description>Deprecated</description>
+          <defaultValue>everett6802/linuxc:2.2</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>CONTAINER_NAME</name>
+          <defaultValue>finance_cluster</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>HOST_SRC_PATH</name>
+          <defaultValue>/host_mnt/c/Users/price/source</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>ENABLE_PORT</name>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>HOST_PORT</name>
+          <defaultValue>5888</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>CONTAINER_PORT</name>
+          <defaultValue>8589</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>ENABLE_COREDUMP</name>
+          <description>需在執行console下: ulimit -c unlimited</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>NEED_DATABASE_NETWORK</name>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>DATABASE_NETWORK_NAME</name>
+          <defaultValue>postgres_network</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>NODE_COUNT</name>
+          <description>1~4</description>
+          <defaultValue>1</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.plugins.copyartifact.CopyArtifact plugin="copyartifact@795.ve8e151429b_27">
+      <project>finance_cluster_build</project>
+      <filter>artifacts/**</filter>
+      <target></target>
+      <includeBuildNumberInTargetPath>false</includeBuildNumberInTargetPath>
+      <excludes></excludes>
+      <selector class="hudson.plugins.copyartifact.StatusBuildSelector"/>
+      <doNotFingerprintArtifacts>false</doNotFingerprintArtifacts>
+    </hudson.plugins.copyartifact.CopyArtifact>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash -e
+
+echo &quot;===== Verify Artifacts =====&quot;
+echo &quot;List $WORKSPACE/artifacts&quot;
+ls -lh &quot;$WORKSPACE/artifacts&quot;
+
+test -x &quot;$WORKSPACE/artifacts/finance_cluster&quot;
+test -f &quot;$WORKSPACE/artifacts/libmsg_dumper.so&quot;
+test -f &quot;$WORKSPACE/artifacts/libpg_db_access.so&quot;
+
+echo &quot;Artifact verification passed!&quot;</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash -e
+# For Debug
+#set -eux
+#set -eu
+
+#echo &quot;Docker integration test temporarily disabled&quot;
+#exit 0
+
+CLUSTER_NETWORK_NAME=finance_cluster_network
+#1	整數 1
+#${1}	Shell Script 的第一個位置參數
+#${4}	Shell Script 的第四個位置參數
+#${NODE_COUNT}	變數 NODE_COUNT 的值
+NODE_COUNT_MIN=1
+NODE_COUNT_MAX=4
+if [[ ${NODE_COUNT} -lt ${NODE_COUNT_MIN} || ${NODE_COUNT} -gt ${NODE_COUNT_MAX} ]]
+then
+   echo &quot;The Node Count(${NODE_COUNT}) is out of range: [${NODE_COUNT_MIN}, ${NODE_COUNT_MAX}]&quot;
+fi
+for ((i=1; i&lt;=NODE_COUNT_MAX; i++))
+do
+   NODE_NAME=${CONTAINER_NAME}${i}
+   docker container rm -f ${NODE_NAME} 2&gt; /dev/null || true
+done
+docker network rm &quot;${CLUSTER_NETWORK_NAME}&quot; 2&gt;/dev/null || true
+
+LOCAL=Asia/Taipei
+DOCKER_COMMAND_BASE=&quot; -e TZ=${LOCAL} --rm -dit --network ${CLUSTER_NETWORK_NAME}&quot;
+# 加上雙引號 &quot; 可以避免空字串導致語法錯誤
+if [ &quot;${ENABLE_COREDUMP}&quot; = &quot;true&quot; ]
+then
+   DOCKER_COMMAND_BASE=&quot;${DOCKER_COMMAND_BASE} --privileged&quot;
+fi
+if [ &quot;${NEED_DATABASE_NETWORK}&quot; = &quot;true&quot; ]
+then
+   DOCKER_COMMAND_BASE=&quot;${DOCKER_COMMAND_BASE} --network ${DATABASE_NETWORK_NAME}&quot; 
+fi
+
+docker network create &quot;${CLUSTER_NETWORK_NAME}&quot;
+SERVER_NAME=&quot;&quot;
+for ((i=1; i&lt;=NODE_COUNT; i++))
+do
+	NODE_NAME=${CONTAINER_NAME}${i}
+    DOCKER_COMMAND=&quot;${DOCKER_COMMAND_BASE} --name ${NODE_NAME}&quot;
+    NODE_PORT=$((HOST_PORT+i-1))
+    if [ &quot;${ENABLE_PORT}&quot; = &quot;true&quot; ]
+    then
+       DOCKER_COMMAND=&quot;${DOCKER_COMMAND} -p ${NODE_PORT}:${CONTAINER_PORT}&quot;
+    fi
+    docker container rm -f ${NODE_NAME} 2&gt; /dev/null || true
+    docker container run ${DOCKER_COMMAND} ${LINUXC_IMAGE_NAME} bash
+    if [ &quot;${ENABLE_COREDUMP}&quot; = &quot;true&quot; ]
+    then
+       docker container exec -u root -i ${NODE_NAME} bash -c &quot;mkdir /var/coredump &amp;&amp; chmod a+rw /var/coredump &amp;&amp; echo &apos;/var/coredump/core_%e.%p_%t&apos; &gt; /proc/sys/kernel/core_pattern&quot;
+    fi
+# 這會把 Jenkins Workspace 裡的執行檔、.so 和設定檔複製到指定 container 的 /app/bin
+    docker cp &quot;$WORKSPACE/artifacts/.&quot; &quot;${NODE_NAME}:/app/bin/&quot;
+    docker container exec -u root &quot;${NODE_NAME}&quot; bash -c &quot;mkdir -p /app/bin/log &amp;&amp; chown -R super:super /app/bin &amp;&amp; chmod 755 /app/bin/log&quot;
+    if [ ${i} = 1 ]
+    then
+       SERVER_NAME=${NODE_NAME}
+       docker container exec -u super -i ${NODE_NAME} bash -c &quot;cd /app/bin &amp;&amp; export LD_LIBRARY_PATH=./ &amp;&amp; ./finance_cluster&quot;
+    else
+       docker container exec -d -u super -i ${NODE_NAME} bash -c &quot;cd /app/bin &amp;&amp; export LD_LIBRARY_PATH=./ &amp;&amp; ./finance_cluster -j ${SERVER_NAME}&quot;
+    fi
+done
+</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

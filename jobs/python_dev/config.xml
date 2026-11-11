@@ -1,0 +1,74 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@338.va_0a_b_50e29397">
+      <autoRebuild>false</autoRebuild>
+      <rebuildDisabled>false</rebuildDisabled>
+    </com.sonyericsson.rebuild.RebuildSettings>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>IMAGE_NAME</name>
+          <description>Deprecated</description>
+          <defaultValue>everett6802/python:1.4</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>CONTAINER_NAME</name>
+          <defaultValue>dev_python</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>HOST_SRC_PATH</name>
+          <defaultValue>/host_mnt/c/Users/price/source/finance_web</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>NEED_DATA</name>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>HOST_DATA_PATH</name>
+          <defaultValue>/host_mnt/c/Users/price/project_data/finance_web</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>CONTAINER_DATA_PATH</name>
+          <defaultValue>/data</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash -e
+#set -eux
+#set -eu
+
+LOCAL=Asia/Taipei
+DOCKER_COMMAND=&quot;-e TZ=${LOCAL} --rm -dit -v ${HOST_SRC_PATH}:/app --name ${CONTAINER_NAME}&quot;
+if [ &quot;${NEED_DATA}&quot; = &quot;true&quot; ]
+then 
+	DOCKER_COMMAND=&quot;${DOCKER_COMMAND} -e DATA_PATH=${CONTAINER_DATA_PATH} -v ${HOST_DATA_PATH}:${CONTAINER_DATA_PATH}&quot;
+fi
+
+docker container rm -f ${CONTAINER_NAME} 2&gt; /dev/null || true
+docker container run ${DOCKER_COMMAND} ${PYTHON_IMAGE_NAME} bash
+</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

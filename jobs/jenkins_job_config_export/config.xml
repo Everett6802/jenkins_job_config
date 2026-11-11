@@ -1,0 +1,74 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@338.va_0a_b_50e29397">
+      <autoRebuild>false</autoRebuild>
+      <rebuildDisabled>false</rebuildDisabled>
+    </com.sonyericsson.rebuild.RebuildSettings>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>HOST_DATA_PATH</name>
+          <defaultValue>/host_mnt/c/docker/jenkins_data</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>HOST_EXPORT_PATH</name>
+          <defaultValue>/host_mnt/c/docker/jenkins_job_config</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/sh
+#set -eux
+
+# docker container run -d -u root --name jenkins -p 8080:8080 -p 50000:50000 -e JAVA_OPTS=&quot;-Duser.timezone=Asia/Taipei&quot; -v C:\docker\jenkins_data:/var/jenkins_home -v /var/run/docker.sock:/var/run/docker.sock everett6802/jenkins:2.2
+# Jenkins mount the folder in the local host: C:\docker\jenkins_data
+#HOST_DATA_PATH=&quot;/host_mnt/c/docker/jenkins_data&quot;
+#HOST_EXPORT_PATH=&quot;/host_mnt/c/docker/jenkins_job_config&quot;
+#HOST_EXPORT_DIR=${HOST_DATA_PATH}
+#LOCAL=Asia/Taipei
+#DATE=$(TZ=$LOCAL date +%Y%m%d_%H%M)
+
+echo &quot;開始匯出 Jenkins Job 設定 執行前請確認：&quot;
+#echo &quot;  1. 已建立 C:\docker\jenkins_job_config&quot;
+echo &quot;  1. 已建立 ${HOST_EXPORT_PATH}&quot;
+echo &quot;  2. 已放入 export_job_config.sh，並使用 LF 換行&quot;
+
+# docker container run --rm -v &quot;${HOST_DATA_PATH}:/data:ro&quot; -v &quot;${HOST_EXPORT_PATH}:/export&quot; alpine:3.18 sh /export/export_job_config.sh --src /data/jobs --dst /export/jobs
+# 這裡改用 --mount：來源資料夾不存在時，Docker 會直接報錯，比 -v 自動建立空資料夾更容易發現路徑設定錯誤
+docker container run --rm \
+    --mount &quot;type=bind,source=${HOST_DATA_PATH},target=/data,readonly&quot; \
+    --mount &quot;type=bind,source=${HOST_EXPORT_PATH},target=/export&quot; \
+    alpine:3.18 sh -ec &apos;
+        if [ ! -f /export/export_job_config.sh ]; then
+            echo &quot;ERROR: 找不到 /export/export_job_config.sh&quot; &gt;&amp;2
+            exit 1
+        fi
+        if [ ! -d /data/jobs ]; then
+            echo &quot;ERROR: 找不到 /data/jobs，請檢查 Jenkins 資料掛載路徑。&quot; &gt;&amp;2
+            exit 1
+        fi
+        sh /export/export_job_config.sh --src /data/jobs --dst /export/jobs
+    &apos;
+echo &quot;Jenkins Job 設定匯出完成&quot;
+</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

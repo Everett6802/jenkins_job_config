@@ -1,0 +1,99 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@338.va_0a_b_50e29397">
+      <autoRebuild>false</autoRebuild>
+      <rebuildDisabled>false</rebuildDisabled>
+    </com.sonyericsson.rebuild.RebuildSettings>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>IMAGE_NAME</name>
+          <defaultValue>postgres:17.7-bookworm</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>CONTAINER_NAME</name>
+          <defaultValue>postgres_database</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>HOST_SRC_PATH</name>
+          <defaultValue>/host_mnt/c/Users/price/source/docker_postgres</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>POSTGRES_USER</name>
+          <description>database裡面的super user 
+docker container exec -it postgres_database psql -U super -d eventdb</description>
+          <defaultValue>super</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>POSTGRES_PASSWORD</name>
+          <defaultValue>sp-admin.8</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>POSTGRES_DB</name>
+          <description>A dummy variable. The database initialization is implemented in 01-create-databases.sql</description>
+          <defaultValue>postgres_db_dummy</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>CLEANUP_DATABASE</name>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>NEED_NETWORK</name>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>NETWORK_NAME</name>
+          <defaultValue>postgres_network</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash -e
+#set -eux
+set -eu
+
+LOCAL=Asia/Taipei
+# 要保留資料: -v ${CONTAINER_NAME}_data:/var/lib/postgresql/data
+# 把 init.sql mount 進 container -&gt; PostgreSQL 啟動時自動執行
+# DOCKER_COMMAND=&quot; -e TZ=${LOCAL} --rm -dit -v ${CONTAINER_NAME}_data:/var/lib/postgresql/data -v ${HOST_SRC_PATH}/init.sql:/docker-entrypoint-initdb.d/init.sql --name ${CONTAINER_NAME} -e POSTGRES_USER=${POSTGRES_USER} -e POSTGRES_PASSWORD=${POSTGRES_PASSWORD} -e POSTGRES_DB=${POSTGRES_DB} -p 5432:5432&quot;
+DOCKER_COMMAND=&quot; -e TZ=${LOCAL} --rm -dit -v ${CONTAINER_NAME}_data:/var/lib/postgresql/data -v ${HOST_SRC_PATH}/init_db:/docker-entrypoint-initdb.d --name ${CONTAINER_NAME} -e POSTGRES_USER=${POSTGRES_USER} -e POSTGRES_PASSWORD=${POSTGRES_PASSWORD} -e POSTGRES_DB=${POSTGRES_DB} -p 5432:5432&quot;
+docker container rm -f ${CONTAINER_NAME} 2&gt;/dev/null || true
+if [ &quot;${NEED_NETWORK}&quot; = &quot;true&quot; ]
+then
+#   docker network rm -f ${NETWORK_NAME} 2&gt;/dev/null || true
+   docker network rm -f ${NETWORK_NAME} || true
+   docker network create ${NETWORK_NAME}
+   DOCKER_COMMAND=&quot;${DOCKER_COMMAND} --network ${NETWORK_NAME}&quot; 
+fi
+if [ &quot;${CLEANUP_DATABASE}&quot; = &quot;true&quot; ]
+then 
+	docker volume rm -f ${CONTAINER_NAME}_data 2&gt;/dev/null || true
+fi
+docker container run ${DOCKER_COMMAND} ${IMAGE_NAME}
+</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

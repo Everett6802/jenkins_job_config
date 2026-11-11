@@ -1,0 +1,5 @@
+# Shell scripts must use LF
+*.sh text eol=lf
+
+# Jenkins XML configuration
+*.xml text eol=lf
